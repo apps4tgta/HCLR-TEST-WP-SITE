@@ -232,11 +232,13 @@ function hclr_get_amenity_icon( string $amenity ): string {
 
 /**
  * Fallback navigation for when no menu is assigned.
+ * WordPress passes the full wp_nav_menu args array as the first argument.
  *
- * @param string $location Menu location slug.
+ * @param array|string $args wp_nav_menu args array or location slug.
  * @return void
  */
-function hclr_fallback_nav( string $location = 'primary' ): void {
+function hclr_fallback_nav( $args = array() ): void {
+    $location = is_array( $args ) ? ( $args['theme_location'] ?? 'primary' ) : $args;
     if ( 'footer' === $location ) {
         echo '<ul class="footer-nav">';
         echo '<li><a href="' . esc_url( home_url( '/' ) ) . '">' . esc_html__( 'Home', 'hclr-well-rooted' ) . '</a></li>';

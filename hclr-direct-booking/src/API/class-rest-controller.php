@@ -47,10 +47,12 @@ class REST_Controller extends \WP_REST_Controller {
 
     /**
      * Constructor.
+     *
+     * @param Settings $settings Settings instance.
      */
-    public function __construct() {
-        $this->settings = \HCLR\DirectBooking\Plugin::get_instance()->settings;
-        $this->client   = new OwnerRez_Client( $this->settings );
+    public function __construct( Settings $settings ) {
+        $this->settings = $settings;
+        $this->client   = new OwnerRez_Client( $settings );
     }
 
     /**

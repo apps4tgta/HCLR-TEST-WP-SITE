@@ -1,0 +1,64 @@
+services:
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: --skip-ssl
+    environment:
+      MYSQL_DATABASE: hclr_wp
+      MYSQL_USER: hclr_user
+      MYSQL_PASSWORD: hclr_pass
+      MYSQL_ROOT_PASSWORD: hclr_root
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wordpress:
+    image: wordpress:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: hclr_wp
+      WORDPRESS_DB_USER: hclr_user
+      WORDPRESS_DB_PASSWORD: hclr_pass
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
+    volumes:
+      # Mount theme and plugin directly — changes are live immediately
+      - ./hclr-well-rooted:/var/www/html/wp-content/themes/hclr-well-rooted
+      - ./hclr-direct-booking:/var/www/html/wp-content/plugins/hclr-direct-booking
+      # Persist uploads and WordPress core
+      - wp_data:/var/www/html
+      - ./docker/php-custom.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+
+  wpcli:
+    image: wordpress:cli
+    restart: "no"
+    depends_on:
+      - wordpress
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: hclr_wp
+      WORDPRESS_DB_USER: hclr_user
+      WORDPRESS_DB_PASSWORD: hclr_pass
+    volumes:
+      - wp_data:/var/www/html
+      - ./hclr-well-rooted:/var/www/html/wp-content/themes/hclr-well-rooted
+      - ./hclr-direct-booking:/var/www/html/wp-content/plugins/hclr-direct-booking
+      - ./docker/php-custom.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+    user: "33:33"
+
+volumes:
+  db_data:
+  wp_data:

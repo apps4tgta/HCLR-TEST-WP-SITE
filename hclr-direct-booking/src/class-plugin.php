@@ -73,7 +73,7 @@ class Plugin {
         }
 
         // REST API.
-        $rest = new REST_Controller();
+        $rest = new REST_Controller( $this->settings );
         add_action( 'rest_api_init', array( $rest, 'register_routes' ) );
 
         // Frontend / Shortcodes.
