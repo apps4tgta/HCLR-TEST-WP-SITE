@@ -1,0 +1,31 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# PHP / Composer
+vendor/
+composer.lock
+
+# WordPress
+wp-config.php
+wp-content/uploads/
+*.log
+
+# Build
+dist/
+*.min.js.map
+*.min.css.map
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Zip files in prior files
+all-prior-files/*.zip
