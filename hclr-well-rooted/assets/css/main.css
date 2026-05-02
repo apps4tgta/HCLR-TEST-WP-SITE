@@ -473,6 +473,9 @@
 .hclr-cal__day.is-checkin { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 .hclr-cal__day.is-checkout { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 
+/* Ensure [hidden] attribute hides elements even when display:flex is set */
+.hclr-calendar-widget [hidden] { display: none !important; }
+
 /* Loading */
 .hclr-cal__loading {
     position: absolute;

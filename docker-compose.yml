@@ -34,6 +34,7 @@ services:
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_DEBUG_LOG', true);
         define('WP_DEBUG_DISPLAY', false);
+        define('SCRIPT_DEBUG', true);
     volumes:
       # Mount theme and plugin directly — changes are live immediately
       - ./hclr-well-rooted:/var/www/html/wp-content/themes/hclr-well-rooted

@@ -288,10 +288,19 @@ class REST_Controller extends \WP_REST_Controller {
         $result = $this->client->get_calendar_month( $property_id, $year, $month );
 
         if ( is_wp_error( $result ) ) {
-            return rest_ensure_response( new \WP_Error( 'api_error', $result->get_error_message(), array( 'status' => 502 ) ) );
+            // Return 200 with error flag so JS can degrade gracefully (not throw on !resp.ok).
+            return new \WP_REST_Response( array(
+                'success'     => false,
+                'error'       => $result->get_error_message(),
+                'property_id' => $property_id,
+                'year'        => $year,
+                'month'       => $month,
+                'days'        => array(),
+            ), 200 );
         }
 
         return rest_ensure_response( array(
+            'success'     => true,
             'property_id' => $property_id,
             'year'        => $year,
             'month'       => $month,
@@ -317,9 +326,17 @@ class REST_Controller extends \WP_REST_Controller {
 
         $result = $this->client->get_availability( $property_id, $check_in, $check_out );
         if ( is_wp_error( $result ) ) {
-            return rest_ensure_response( new \WP_Error( 'api_error', $result->get_error_message(), array( 'status' => 502 ) ) );
+            // Return 200 with error flag so JS can degrade gracefully.
+            return new \WP_REST_Response( array(
+                'success' => false,
+                'error'   => $result->get_error_message(),
+                'days'    => array(),
+            ), 200 );
         }
-        return rest_ensure_response( $result );
+        return rest_ensure_response( array(
+            'success' => true,
+            'days'    => $result,
+        ) );
     }
 
     /**
@@ -343,7 +360,60 @@ class REST_Controller extends \WP_REST_Controller {
         if ( is_wp_error( $result ) ) {
             return rest_ensure_response( new \WP_Error( 'api_error', $result->get_error_message(), array( 'status' => 502 ) ) );
         }
-        return rest_ensure_response( $result );
+        return rest_ensure_response( $this->normalize_quote( $result, $check_in, $check_out ) );
+    }
+
+    /**
+     * Normalize OwnerRez quote response to frontend-friendly flat format.
+     *
+     * OwnerRez returns a `charges` array; JS expects flat fields.
+     *
+     * @param array  $raw      Raw OwnerRez quote response.
+     * @param string $check_in  Check-in date (Y-m-d).
+     * @param string $check_out Check-out date (Y-m-d).
+     * @return array
+     */
+    private function normalize_quote( array $raw, string $check_in, string $check_out ): array {
+        $charges      = $raw['charges'] ?? array();
+        $nights       = (int) round( ( strtotime( $check_out ) - strtotime( $check_in ) ) / DAY_IN_SECONDS );
+        $subtotal     = 0.0;
+        $cleaning_fee = 0.0;
+        $service_fee  = 0.0;
+        $taxes        = 0.0;
+        $total        = 0.0;
+
+        foreach ( $charges as $charge ) {
+            $amount = floatval( $charge['amount'] ?? 0 );
+            $type   = $charge['type'] ?? '';
+            $desc   = strtolower( $charge['description'] ?? '' );
+
+            $total += $amount;
+
+            if ( 'rent' === $type ) {
+                $subtotal += $amount;
+            } elseif ( 'tax' === $type ) {
+                $taxes += $amount;
+            } elseif ( 'surcharge' === $type ) {
+                if ( str_contains( $desc, 'cleaning' ) ) {
+                    $cleaning_fee += $amount;
+                } else {
+                    $service_fee += $amount;
+                }
+            }
+        }
+
+        return array(
+            'nights'       => $nights,
+            'subtotal'     => $subtotal,
+            'cleaning_fee' => $cleaning_fee,
+            'service_fee'  => $service_fee,
+            'taxes'        => $taxes,
+            'total'        => $total,
+            'quote_id'     => $raw['id']  ?? null,
+            'quote_key'    => $raw['key'] ?? null,
+            'arrival'      => $raw['arrival']   ?? $check_in,
+            'departure'    => $raw['departure']  ?? $check_out,
+        );
     }
 
     /**
@@ -374,58 +444,58 @@ class REST_Controller extends \WP_REST_Controller {
             return rest_ensure_response( new \WP_Error( 'invalid_email', __( 'Invalid email address.', 'hclr-direct-booking' ), array( 'status' => 400 ) ) );
         }
 
-        // Get price quote first.
-        $quote = $this->client->get_quote( $property_id, $check_in, $check_out, $guests );
+        // Step 1: Create guest record in OwnerRez.
+        $guest = $this->client->create_guest( $first_name, $last_name, $email, $phone );
+        if ( is_wp_error( $guest ) ) {
+            return rest_ensure_response( new \WP_Error( 'guest_failed', $guest->get_error_message(), array( 'status' => 502 ) ) );
+        }
+        $guest_id = absint( $guest['id'] ?? 0 );
+        if ( ! $guest_id ) {
+            return rest_ensure_response( new \WP_Error( 'guest_failed', __( 'Could not create guest record.', 'hclr-direct-booking' ), array( 'status' => 502 ) ) );
+        }
+
+        // Step 2: Create v1 quote — returns hosted paymentForm URL for checkout.
+        $quote = $this->client->create_v1_quote( $guest_id, $property_id, $check_in, $check_out, $guests ?: 1 );
         if ( is_wp_error( $quote ) ) {
             return rest_ensure_response( new \WP_Error( 'quote_failed', $quote->get_error_message(), array( 'status' => 502 ) ) );
         }
 
-        // Build OwnerRez booking payload.
-        $booking_data = array(
-            'propertyId'      => $property_id,
-            'checkIn'         => $check_in,
-            'checkOut'        => $check_out,
-            'adults'          => $guests,
-            'guestFirstName'  => $first_name,
-            'guestLastName'   => $last_name,
-            'guestEmail'      => $email,
-            'guestPhone'      => $phone,
-            'specialRequests' => $special_requests,
-            'source'          => 'direct',
-        );
+        $payment_form = $quote['paymentForm'] ?? '';
+        $quote_id     = absint( $quote['id'] ?? 0 );
 
-        $or_booking = $this->client->create_booking( $booking_data );
-        if ( is_wp_error( $or_booking ) ) {
-            return rest_ensure_response( new \WP_Error( 'booking_failed', $or_booking->get_error_message(), array( 'status' => 502 ) ) );
+        // Derive total from charges array.
+        $total = 0.0;
+        foreach ( $quote['charges'] ?? array() as $charge ) {
+            $total += floatval( $charge['amount'] ?? 0 );
         }
 
-        // Save locally.
-        $db      = new DB_Manager();
-        $nights  = Helpers::get_nights_count( $check_in, $check_out );
-        $total   = floatval( $quote['total'] ?? 0 );
+        // Save locally as pending until OwnerRez confirms payment.
+        $db       = new DB_Manager();
+        $nights   = Helpers::get_nights_count( $check_in, $check_out );
         $local_id = $db->save_booking( array(
-            'property_id'    => $property_id,
-            'or_booking_id'  => $or_booking['id'] ?? 0,
-            'check_in'       => $check_in,
-            'check_out'      => $check_out,
-            'guests'         => $guests,
-            'guest_name'     => $first_name . ' ' . $last_name,
-            'guest_email'    => $email,
-            'guest_phone'    => $phone,
-            'total_amount'   => $total,
-            'status'         => 'pending',
+            'property_id'      => $property_id,
+            'or_booking_id'    => $quote_id,
+            'check_in'         => $check_in,
+            'check_out'        => $check_out,
+            'guests'           => $guests,
+            'guest_name'       => $first_name . ' ' . $last_name,
+            'guest_email'      => $email,
+            'guest_phone'      => $phone,
+            'total_amount'     => $total,
+            'status'           => 'pending',
             'special_requests' => $special_requests,
         ) );
 
         return rest_ensure_response( array(
-            'booking_id'    => $local_id,
-            'or_booking_id' => $or_booking['id'] ?? null,
-            'status'        => 'pending',
-            'total'         => $total,
-            'check_in'      => $check_in,
-            'check_out'     => $check_out,
-            'nights'        => $nights,
-            'guest_name'    => $first_name . ' ' . $last_name,
+            'booking_id'   => $local_id,
+            'or_quote_id'  => $quote_id,
+            'payment_form' => $payment_form,
+            'status'       => 'pending',
+            'total'        => $total,
+            'check_in'     => $check_in,
+            'check_out'    => $check_out,
+            'nights'       => $nights,
+            'guest_name'   => $first_name . ' ' . $last_name,
         ) );
     }
 
@@ -465,7 +535,7 @@ class REST_Controller extends \WP_REST_Controller {
         $ip_key  = 'hclr_rate_' . md5( $_SERVER['REMOTE_ADDR'] ?? '' );
         $current = (int) get_transient( $ip_key );
 
-        if ( $current >= 10 ) {
+        if ( $current >= 60 ) {
             return new \WP_Error( 'rate_limited', __( 'Too many requests. Please try again later.', 'hclr-direct-booking' ), array( 'status' => 429 ) );
         }
 

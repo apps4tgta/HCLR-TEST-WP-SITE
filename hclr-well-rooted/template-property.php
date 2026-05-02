@@ -324,7 +324,7 @@ $photo_count = max( 1, count( $gallery_images ) );
             <div style="text-align:center;margin-bottom:var(--space-lg);">
                 <p class="eyebrow"><?php esc_html_e( 'Real-Time Availability', 'hclr-well-rooted' ); ?></p>
                 <h2><?php esc_html_e( 'Check Availability & Pricing', 'hclr-well-rooted' ); ?></h2>
-                <p style="color:var(--wr-flint);">
+                <p style="color:var(--wr-cedar-sage);">
                     <?php esc_html_e( 'Select your arrival and departure dates to see live rates.', 'hclr-well-rooted' ); ?>
                 </p>
             </div>

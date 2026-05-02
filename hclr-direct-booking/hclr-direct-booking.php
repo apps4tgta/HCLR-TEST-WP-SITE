@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Plugin constants.
 define( 'HCLR_DB_VERSION', '1.0.0' );
-define( 'HCLR_PLUGIN_VERSION', '1.0.0' );
+define( 'HCLR_PLUGIN_VERSION', '1.0.2' );
 define( 'HCLR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HCLR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'HCLR_PLUGIN_FILE', __FILE__ );

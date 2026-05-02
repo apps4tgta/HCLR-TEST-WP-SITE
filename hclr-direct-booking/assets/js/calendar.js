@@ -174,6 +174,7 @@ class HCLRCalendarWidget {
         if (header) header.textContent = this.currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
         const grid = this.widget.querySelector('#calendarGrid');
+        if (!grid) return;
         grid.innerHTML = '';
 
         // Empty leading cells
@@ -390,7 +391,12 @@ class HCLRCalendarWidget {
     }
 }
 
-/** Auto-initialise all calendar widgets on the page */
+/** Auto-initialise plugin calendar widgets (identified by #calendarGrid inside them).
+ *  Theme-rendered widgets use #hclrCalGrid and are driven by main.js — skip those. */
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.hclr-calendar-widget').forEach(el => new HCLRCalendarWidget(el));
+    document.querySelectorAll('.hclr-calendar-widget').forEach(el => {
+        if (el.querySelector('#calendarGrid')) {
+            new HCLRCalendarWidget(el);
+        }
+    });
 });

@@ -178,7 +178,13 @@
                     return;
                 }
 
-                // Success — redirect to confirmation or show inline message
+                // Success — redirect to OwnerRez hosted payment form.
+                // OwnerRez collects card details and confirms the booking there.
+                if (data.payment_form) {
+                    window.location.href = data.payment_form;
+                    return;
+                }
+                // Fallback: redirect to local confirmation page.
                 const confirmUrl = new URL(window.location.href);
                 if (hclr_data.confirm_url) {
                     confirmUrl.href = hclr_data.confirm_url;

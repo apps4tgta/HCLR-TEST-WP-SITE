@@ -112,16 +112,16 @@ function hclr_enqueue_assets(): void {
         null
     );
 
-    // Swiper.js (for hero carousels).
+    // Swiper.js (bundled locally — no CDN dependency).
     wp_enqueue_style(
         'swiper',
-        'https://cdnjs.cloudflare.com/ajax/libs/Swiper/11.0.5/swiper-bundle.min.css',
+        HCLR_THEME_URI . '/assets/vendor/swiper/swiper-bundle.min.css',
         array(),
         '11.0.5'
     );
     wp_enqueue_script(
         'swiper',
-        'https://cdnjs.cloudflare.com/ajax/libs/Swiper/11.0.5/swiper-bundle.min.js',
+        HCLR_THEME_URI . '/assets/vendor/swiper/swiper-bundle.min.js',
         array(),
         '11.0.5',
         true

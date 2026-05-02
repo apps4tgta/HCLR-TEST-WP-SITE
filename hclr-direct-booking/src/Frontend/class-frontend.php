@@ -96,20 +96,15 @@ class Frontend {
             return;
         }
 
-        // Swiper.js (for hero carousels).
-        wp_enqueue_style(
-            'swiper',
-            'https://cdnjs.cloudflare.com/ajax/libs/Swiper/11.0.5/swiper-bundle.min.css',
-            array(),
-            '11.0.5'
-        );
-        wp_enqueue_script(
-            'swiper',
-            'https://cdnjs.cloudflare.com/ajax/libs/Swiper/11.0.5/swiper-bundle.min.js',
-            array(),
-            '11.0.5',
-            true
-        );
+        // Swiper.js — use the copy already registered by the theme; no-op if already enqueued.
+        if ( ! wp_script_is( 'swiper', 'registered' ) ) {
+            $theme_uri = get_template_directory_uri();
+            wp_enqueue_style( 'swiper', $theme_uri . '/assets/vendor/swiper/swiper-bundle.min.css', array(), '11.0.5' );
+            wp_enqueue_script( 'swiper', $theme_uri . '/assets/vendor/swiper/swiper-bundle.min.js', array(), '11.0.5', true );
+        } else {
+            wp_enqueue_style( 'swiper' );
+            wp_enqueue_script( 'swiper' );
+        }
 
         // Plugin booking CSS.
         wp_enqueue_style(

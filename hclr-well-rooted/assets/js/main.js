@@ -240,6 +240,9 @@
             this.checkOut    = null;
             this.selecting   = 'checkin'; // 'checkin' | 'checkout'
 
+            this._quoteTimer   = null;   // debounce handle
+            this._quoteAbort   = null;   // AbortController for in-flight quote request
+
             // DOM refs
             this.grid      = widget.querySelector( '#hclrCalGrid' );
             this.monthLbl  = widget.querySelector( '#hclrMonthLabel' );
@@ -444,11 +447,27 @@
             }
         }
 
-        async fetchQuote() {
+        fetchQuote() {
             if ( ! this.checkIn || ! this.checkOut ) return;
+
+            // Cancel any previous debounce and in-flight request.
+            clearTimeout( this._quoteTimer );
+            if ( this._quoteAbort ) {
+                this._quoteAbort.abort();
+                this._quoteAbort = null;
+            }
 
             this.hidePricing();
             if ( this.priceLdEl ) this.priceLdEl.hidden = false;
+
+            // Debounce: wait 600 ms after the last date click before hitting the API.
+            this._quoteTimer = setTimeout( () => this._doFetchQuote(), 600 );
+        }
+
+        async _doFetchQuote() {
+            if ( ! this.checkIn || ! this.checkOut ) return;
+
+            this._quoteAbort = new AbortController();
 
             const url  = `${ this.restUrl }hclr/v1/quote`;
             const body = JSON.stringify( {
@@ -466,6 +485,7 @@
                         'X-WP-Nonce':   this.nonce,
                     },
                     body,
+                    signal: this._quoteAbort.signal,
                 } );
 
                 if ( ! resp.ok ) {
@@ -477,7 +497,7 @@
                 this.renderPricing( data );
 
             } catch ( err ) {
-                // Show a simple message instead of killing the whole calendar
+                if ( err.name === 'AbortError' ) return; // superseded by newer selection
                 const note = this.widget.querySelector( '#hclrPriceNote' );
                 if ( note ) {
                     note.textContent = 'Pricing unavailable. Contact us for a quote.';
@@ -487,6 +507,7 @@
                 console.error( '[HCLR Quote]', err );
             } finally {
                 if ( this.priceLdEl ) this.priceLdEl.hidden = true;
+                this._quoteAbort = null;
             }
         }
 
@@ -506,6 +527,7 @@
             const service      = data.service_fee    || 0;
             const total        = data.total          || data.total_price      || 0;
 
+            set( 'hclrNightsDisplay', nights + ( nights === 1 ? ' night' : ' nights' ) );
             set( 'hclrNightlyTotal', fmtPrice( nightlyTotal ) );
             set( 'hclrCleaningFee',  fmtPrice( cleaning ) );
             set( 'hclrServiceFee',   fmtPrice( service ) );
